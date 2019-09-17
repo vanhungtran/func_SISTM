@@ -1,0 +1,177 @@
+
+options(shiny.maxRequestSize = 30*1024^2)
+library(cytometree)
+library(flowCore)
+library(shiny)
+library(foreign)
+
+
+
+ui <- shinyUI(fluidPage(
+    
+    fluidRow(
+        column(4,
+               
+    
+    # Application title
+   # titlePanel("Flow cytometry with package cytometree"),
+    
+    
+    
+    
+    tags$head(
+        tags$style(HTML("
+        @import url('//fonts.googleapis.com/css?family=Lobster|Cabin:400,700');
+         h1 {
+        font-family: 'Trattatello', fantasy;
+        font-weight: 500;
+        line-height: 1.1;
+       color: #D2691E;
+      align = 'center'
+      }
+
+    "))
+    ),
+    headerPanel("Shiny_SISTM: Shiny Application for automate gating"),
+    
+    # Blocks printing any errors in the Shiny UI.
+    
+    tags$style(type="text/css",
+               ".shiny-output-error { visibility: hidden; }",
+               ".shiny-output-error:before { visibility: hidden; }"),
+    
+    
+   tabsetPanel(
+       
+       # First tabpanel is the "Information" and all the information for application can be found in Information.R file
+       
+       tabPanel(
+           h4("Information", style = "color: #800080;"),
+           #img(src = 'image.png', align = "right", width = "50%", height = "50%"),
+           source("C:/Users/HP/OneDrive/book/Information.R", local = TRUE)[1]
+       ),
+    
+   
+    sidebarLayout(
+        sidebarPanel(width = 6,
+            fileInput('file1', 'Select the XXX.FCS file',
+                      accept=c('FCS','.fcs'))
+            # ,
+            # tags$hr(),
+            # fileInput('file2', 'Select the YYY.FCS file',
+            #           accept=c('FCS','.fcs'))
+            # ,
+            # tags$hr(),
+            # numericInput("S", "Number of simulations to run:", 100)
+        ),
+        
+        
+        
+        
+        mainPanel(
+            plotOutput("plot"),
+            plotOutput(outputId = "plot2",  width = "100%"),
+            plotOutput(outputId = "plot3", width = "100%") )
+   
+        
+       
+        
+        
+        
+        
+        
+    
+        
+        
+        
+         ))
+)
+)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(shiny)
+
+server <- shinyServer(function(input, output) {
+    
+    observe({
+        file1 = input$file1
+        
+        if (is.null(file1)) {
+            return(NULL)
+        }
+        data1 = (read.FCS(file1$datapath))@exprs
+       
+        T2 <- data1
+        colnames(T2)[which(colnames(T2)=="FSC-A")] <- "FSC-A"
+        colnames(T2)[which(colnames(T2)=="FITC-A")] <- "IgD"
+        colnames(T2)[which(colnames(T2)=="PE-A")] <- "CD24"
+        colnames(T2)[which(colnames(T2)=="PE-Texas Red-A")] <- "CD19"
+        colnames(T2)[which(colnames(T2)=="PE-Cy5-A")] <- "CD20"
+        colnames(T2)[which(colnames(T2)=="PE-Cy7-A")] <- "CD38"
+        colnames(T2)[which(colnames(T2)=="APC-A")] <- "CD138"
+        colnames(T2)[which(colnames(T2)=="APC-Cy7-A")] <- "CD27"
+        colnames(T2)[which(colnames(T2)=="Pacific Orange-A")] <- "CD45"
+        T2 = T2[,1:9]
+        
+        
+        Tree <- CytomeTree(T2, minleaf = 1, t = 0.15)
+        Annot <- Annotation(Tree,plot=FALSE, K2markers = colnames(T2))
+        
+        output$plot <- renderPlot({
+            plot_cytopop(Annot)
+           
+        })
+    
+        
+        output$plot2 <- renderPlot({
+            plot_nodes(Tree)    
+            
+        })
+        
+        
+        output$plot3 <- renderPlot({
+            plot_graph(Tree)
+        })
+        
+        
+       
+        
+        
+        
+        
+        
+        
+        
+        
+         
+        
+        
+        
+        
+        
+        
+        })
+    
+})
+
+
+
+
+shinyApp(ui = ui, server = server)
