@@ -4,20 +4,76 @@ library(cytometree)
 library(flowCore)
 library(shiny)
 library(foreign)
+library(PerformanceAnalytics)
+library(shinythemes)
+
+ 
+library(DataExplorer)
+
+plot_HMpop <- function(TreeObj, AnnotObj) {
+  
+  if (class(TreeObj)!="CytomeTree") {
+    
+    stop("TreeObj must be class of CytomeTree")
+    
+  }
+  
+  if (class(AnnotObj)!="Annotation") {
+    
+    stop("AnnotObj must be class of Annotation")
+    
+  }
+  
+  nbClust <- max(AnnotObj$labels)
+  data <- matrix(ncol = ncol(TreeObj$M))
+  
+  for (numclust in 1:nbClust) {
+    
+    data <- rbind(data, robustbase::colMedians(as.matrix(TreeObj$M[which(AnnotObj$labels==numclust),])))
+    
+  }
+  
+  data <- t(data[-1,])
+  colnames(data) <- c(1:nbClust)
+  
+  color <-  circlize::colorRamp2(seq(min(data), max(data), length = 3), c("red", "#EEEEEE", "green"), space = "RGB")
+  
+  df <- data.frame(Log10_Count = log10(AnnotObj$combinations[,"count"]))
+  
+  annotation <- ComplexHeatmap::HeatmapAnnotation(df = df,
+                                                  col = list(Log10_Count = circlize::colorRamp2(c(min(df), max(df)), 
+                                                                                                c("yellow", "orange")))) 
+  
+  ComplexHeatmap::Heatmap(data, col = color, name = "Median of intensity by population", 
+                          column_title = "Populations", row_title = "Markers",
+                          column_title_side = "bottom",
+                          top_annotation = annotation,
+                          cluster_rows = FALSE,
+                          row_names_side = "left",
+                          cell_fun = function(j, i, x, y, width, height, fill) {
+                            grid::grid.text(sprintf("%.1f", data[i, j]), x, y, 
+                                            gp = grid::gpar(fontsize = 10))
+                          })
+}
 
 
 
-ui <- shinyUI(fluidPage(
-    
-    fluidRow(
-        column(4,
-               
-    
-    # Application title
-   # titlePanel("Flow cytometry with package cytometree"),
-    
-    
-    
+
+
+
+ui <- shinyUI(fluidPage(theme = shinytheme("cyborg"),
+                        #  shinythemes::themeSelector(),
+                        
+                        title = "Data analysis with Cytometree",
+                        
+                       
+
+                     
+   
+                      
+                      
+                      
+ 
     
     tags$head(
         tags$style(HTML("
@@ -45,35 +101,205 @@ ui <- shinyUI(fluidPage(
        
        # First tabpanel is the "Information" and all the information for application can be found in Information.R file
        
-       tabPanel(
-           h4("Information", style = "color: #800080;"),
-           #img(src = 'image.png', align = "right", width = "50%", height = "50%"),
-           source("C:/Users/HP/OneDrive/book/Information.R", local = TRUE)[1]
-       ),
-    
+       # tabPanel(
+       #     h4("Information", style = "color: #800080;"),
+       #     #img(src = 'sistm.jpg', align = "right", width = "50%", height = "50%"),
+       #     source("C:/Users/HP/OneDrive/book/Information.R", local = TRUE)[1]
+       # ),
+       # 
    
     sidebarLayout(
-        sidebarPanel(width = 6,
-            fileInput('file1', 'Select the XXX.FCS file',
-                      accept=c('FCS','.fcs'))
-            # ,
-            # tags$hr(),
+        sidebarPanel(
+          
+          fileInput('file1', 'Select the XXX.FCS file',
+                    accept=c('FCS','.fcs'))
+          
+          ,
+          
+          
+          
+          
+          htmltools::hr(),htmltools::h4('Data Preprocessing'),
+          
+          shiny::column(width=4,shiny::selectizeInput('transpose','Transpose',choices = c('No'=FALSE,'Yes'=TRUE),selected = FALSE)),
+          
+          shiny::column(width=4,shiny::selectizeInput("transform_fun", "Transform", c(Identity=".", Asin = "Asin",Biexponential = "Biexponential",Sqrt='sqrt',log='log',Scale='scale',Normalize='normalize',Percentize='percentize',"Missing values"='is.na10', Correlation='cor'),selected = '.')),
+          
+          shiny::uiOutput('annoVars'),
+          
+          
+          
+          
+          
+          
+          htmltools::br(),htmltools::hr(),htmltools::h4('Row dendrogram'),
+          
+          shiny::column(width=6,shiny::selectizeInput("distFun_row", "Distance method", c(Euclidean="euclidean",Maximum='maximum',Manhattan='manhattan',Canberra='canberra',Binary='binary',Minkowski='minkowski'),selected = 'euclidean')),
+          
+          shiny::column(width=6,shiny::selectizeInput("hclustFun_row", "Clustering linkage", c(Complete= "complete",Single= "single",Average= "average",Mcquitty= "mcquitty",Median= "median",Centroid= "centroid",Ward.D= "ward.D",Ward.D2= "ward.D2"),selected = 'complete')),
+          
+          shiny::column(width=12,shiny::sliderInput("r", "Number of Clusters", min = 1, max = 15, value = 2)),    
+          
+          #column(width=4,numericInput("r", "Number of Clusters", min = 1, max = 20, value = 2, step = 1)),   
+          
+          
+          
+          htmltools::br(),htmltools::hr(),htmltools::h4('Column dendrogram'),
+          
+          shiny::column(width=6,shiny::selectizeInput("distFun_col", "Distance method", c(Euclidean="euclidean",Maximum='maximum',Manhattan='manhattan',Canberra='canberra',Binary='binary',Minkowski='minkowski'),selected = 'euclidean')),
+          
+          shiny::column(width=6,shiny::selectizeInput("hclustFun_col", "Clustering linkage", c(Complete= "complete",Single= "single",Average= "average",Mcquitty= "mcquitty",Median= "median",Centroid= "centroid",Ward.D= "ward.D",Ward.D2= "ward.D2"),selected = 'complete')),
+          
+          shiny::column(width=12,shiny::sliderInput("c", "Number of Clusters", min = 1, max = 15, value = 2)),
+          
+          #column(width=4,numericInput("c", "Number of Clusters", min = 1, max = 20, value = 2, step = 1)),    
+          
+          
+          
+          htmltools::br(),htmltools::hr(),  htmltools::h4('Additional Parameters'),
+          
+          
+          
+          shiny::column(3,shiny::checkboxInput('showColor','Color')),
+          
+          shiny::column(3,shiny::checkboxInput('showMargin','Layout')),
+          
+          shiny::column(3,shiny::checkboxInput('showDendo','Dendrogram')),
+          
+          htmltools::hr(),
+          
+          shiny::conditionalPanel('input.showColor==1',
+                                  
+                                  htmltools::hr(),
+                                  
+                                  htmltools::h4('Color Manipulation'),
+                                  
+                                  shiny::uiOutput('colUI'),
+                                  
+                                  shiny::sliderInput("ncol", "Set Number of Colors", min = 1, max = 256, value = 256),
+                                  
+                                  shiny::checkboxInput('colRngAuto','Auto Color Range',value = T),
+                                  
+                                  shiny::conditionalPanel('!input.colRngAuto',shiny::uiOutput('colRng'))
+                                  
+          ),
+          
+          
+          
+          shiny::conditionalPanel('input.showDendo==1',
+                                  
+                                  htmltools::hr(),
+                                  
+                                  htmltools::h4('Dendrogram Manipulation'),
+                                  
+                                  shiny::selectInput('dendrogram','Dendrogram Type',choices = c("both", "row", "column", "none"),selected = 'both'),
+                                  
+                                  shiny::selectizeInput("seriation", "Seriation", c(OLO="OLO",GW="GW",Mean="mean",None="none"),selected = 'OLO'),
+                                  
+                                  shiny::sliderInput('branches_lwd','Dendrogram Branch Width',value = 0.6,min=0,max=5,step = 0.1)
+                                  
+          ),             
+          
+          
+          
+          shiny::conditionalPanel('input.showMargin==1',
+                                  
+                                  htmltools::hr(),
+                                  
+                                  htmltools::h4('Widget Layout'),
+                                  
+                                  shiny::column(4,shiny::textInput('main','Title','')),
+                                  
+                                  shiny::column(4,shiny::textInput('xlab','X Title','')),
+                                  
+                                  shiny::column(4,shiny::textInput('ylab','Y Title','')),
+                                  
+                                  shiny::sliderInput('row_text_angle','Row Text Angle',value = 0,min=0,max=180),
+                                  
+                                  shiny::sliderInput('column_text_angle','Column Text Angle',value = 45,min=0,max=180),
+                                  
+                                  shiny::sliderInput("l", "Set Margin Width", min = 0, max = 200, value = 130),
+                                  
+                                  shiny::sliderInput("b", "Set Margin Height", min = 0, max = 200, value = 40)
+                                  
+          )
+          
+          
+          
+           # tags$hr(),
             # fileInput('file2', 'Select the YYY.FCS file',
             #           accept=c('FCS','.fcs'))
             # ,
             # tags$hr(),
             # numericInput("S", "Number of simulations to run:", 100)
-        ),
+      
+           
+        
+           
+          
+           
+           
+           
+           
+           
+           
+           
+             ),
         
         
         
         
-        mainPanel(
-            plotOutput("plot"),
-            plotOutput(outputId = "plot2",  width = "100%"),
-            plotOutput(outputId = "plot3", width = "100%") )
-   
         
+          
+        shiny::mainPanel(
+          
+          shiny::tabsetPanel(
+            
+            shiny::tabPanel("Cytometree",
+                            DT::dataTableOutput('table'),
+                            
+                                plotOutput("plot2"),
+                                plotOutput(outputId = "plot3",  width = "100%"),
+                                plotOutput(outputId = "plot4", width = "100%"),
+                                
+                              plotOutput(outputId = "plot5", width = "100%")
+                            
+                            # htmltools::tags$a(id = 'downloadData', class = paste("btn btn-default shiny-download-link",'mybutton'), href = "", target = "_blank", download = NA, shiny::icon("clone"), 'Download Heatmap as HTML'),
+                            # 
+                            # htmltools::tags$head(htmltools::tags$style(".mybutton{color:white;background-color:blue;} .skin-black .sidebar .mybutton{color: green;}") ),
+                            # 
+                            # plotly::plotlyOutput("heatout",height=paste0(plotHeight,'px'))
+                            
+            ),
+            
+            shiny::tabPanel("Heatmap",
+                            plotOutput(outputId = "plot", width = "100%")
+                            
+                           
+                            
+            )
+            
+          ) 
+          
+        )
+        
+        
+        
+        
+        # 
+        # 
+        # mainPanel(
+        #   DT::dataTableOutput("table"),
+        #   plotOutput(outputId = "plot", width = "100%"),
+        #     plotOutput("plot2"),
+        #     plotOutput(outputId = "plot3",  width = "100%"),
+        #     plotOutput(outputId = "plot4", width = "100%"),
+        #     
+        #   plotOutput(outputId = "plot5", width = "100%")
+        #     
+        #     )
+        # 
+        # 
        
         
         
@@ -85,8 +311,18 @@ ui <- shinyUI(fluidPage(
         
         
          ))
-)
-)))
+
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+))
 
 
 
@@ -106,9 +342,8 @@ ui <- shinyUI(fluidPage(
 
 
 
-library(shiny)
 
-server <- shinyServer(function(input, output) {
+server <- shinyServer(function(input, output, session) {
     
     observe({
         file1 = input$file1
@@ -116,9 +351,9 @@ server <- shinyServer(function(input, output) {
         if (is.null(file1)) {
             return(NULL)
         }
-        data1 = (read.FCS(file1$datapath))@exprs
+        T2 = (read.FCS(file1$datapath))
        
-        T2 <- data1
+        #T2 <- data1
         colnames(T2)[which(colnames(T2)=="FSC-A")] <- "FSC-A"
         colnames(T2)[which(colnames(T2)=="FITC-A")] <- "IgD"
         colnames(T2)[which(colnames(T2)=="PE-A")] <- "CD24"
@@ -128,27 +363,22 @@ server <- shinyServer(function(input, output) {
         colnames(T2)[which(colnames(T2)=="APC-A")] <- "CD138"
         colnames(T2)[which(colnames(T2)=="APC-Cy7-A")] <- "CD27"
         colnames(T2)[which(colnames(T2)=="Pacific Orange-A")] <- "CD45"
-        T2 = T2[,1:9]
         
         
-        Tree <- CytomeTree(T2, minleaf = 1, t = 0.15)
-        Annot <- Annotation(Tree,plot=FALSE, K2markers = colnames(T2))
-        
-        output$plot <- renderPlot({
-            plot_cytopop(Annot)
-           
-        })
-    
-        
-        output$plot2 <- renderPlot({
-            plot_nodes(Tree)    
-            
-        })
         
         
-        output$plot3 <- renderPlot({
-            plot_graph(Tree)
-        })
+        
+        T3 <- T2@exprs
+        
+        
+        
+        
+        
+        
+        
+        
+        T3 = T3[,1:9]
+        
         
         
        
@@ -156,6 +386,55 @@ server <- shinyServer(function(input, output) {
         
         
         
+        
+        Tree <- CytomeTree(T3, minleaf = 1, t = 0.15)
+        Annot <- Annotation(Tree,plot=FALSE, K2markers = colnames(T2))
+        
+        
+        output$plot <- renderPlot({
+          plot_HMpop(Tree , Annot)
+        })
+        
+        output$plot2 <- renderPlot({
+          plot_density(T3)
+          
+        })
+        
+        
+        output$plot3 <- renderPlot({
+          plot_nodes(Tree)    
+          
+        })
+        
+        
+        output$plot4 <- renderPlot({
+            plot_cytopop(Annot)
+           
+        })
+    
+        
+        output$plot5 <- renderPlot({
+          plot_graph(Tree)
+        })
+        
+        
+       
+        
+      
+        
+      
+        
+        
+        
+       
+         
+          
+        
+        
+        
+        
+        
+        output$table <- DT::renderDataTable(DT::datatable(head(T2,50)))
         
         
         
